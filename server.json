@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "kr.eocpa/mykifrs",
+  "title": "MyKIFRS",
+  "description": "Full-text search over K-IFRS/K-GAAP standards and KASB accounting Q&A for Korean accountants",
+  "version": "0.10.1",
+  "websiteUrl": "https://eocpa.kr/mykifrs",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mykifrs.eocpa.kr/mcp",
+      "headers": [
+        {
+          "name": "x-eocpa-token",
+          "description": "eocpa token (https://eocpa.kr/token) — shared across MyDART·MyKIFRS·MyFSS. Required for tool calls; discovery (tools/list) works without it.",
+          "isSecret": true,
+          "isRequired": true
+        }
+      ]
+    }
+  ]
+}

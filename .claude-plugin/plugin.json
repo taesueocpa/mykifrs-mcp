@@ -1,0 +1,41 @@
+{
+  "name": "mykifrs",
+  "version": "0.10.1",
+  "description": "K-IFRS·일반기업회계기준·감사기준서·내부회계관리제도·KSSB 기준서 본문과 회계기준원·금감원 질의회신 3,669건 전문검색 — MCP 도구 6개",
+  "author": {
+    "name": "eocpa.kr",
+    "email": "contact@eocpa.kr",
+    "url": "https://github.com/taesueocpa"
+  },
+  "homepage": "https://eocpa.kr/mykifrs",
+  "repository": "https://github.com/taesueocpa/mykifrs-mcp",
+  "license": "MIT",
+  "keywords": [
+    "k-ifrs",
+    "kasb",
+    "회계기준",
+    "질의회신",
+    "회계기준원",
+    "accounting-standards",
+    "finance-ai",
+    "mcp"
+  ],
+  "mcpServers": {
+    "mykifrs": {
+      "type": "http",
+      "url": "https://mykifrs.eocpa.kr/mcp",
+      "headers": {
+        "x-eocpa-token": "${user_config.token}"
+      }
+    }
+  },
+  "userConfig": {
+    "token": {
+      "type": "string",
+      "title": "eocpa token (필수)",
+      "description": "https://eocpa.kr/token 에서 발급. MyDART·MyKIFRS·MyFSS 공용. 도구 호출에 필수입니다(없으면 401). 목록 조회만 자격 없이 됩니다.",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}

@@ -18,9 +18,9 @@ A language model can paraphrase an accounting standard; a practitioner has to ci
 | Tool | Input | Returns |
 |---|---|---|
 | `search_standards` | `query`, `std_num?`, `limit?` | Paragraph hits across all standards (`unique_key`, standard title, category, snippet), relevance-ranked |
-| `search_qnas` | `query`, `limit?` | Q&A hits with document number, date, issuing body, related standards, snippet |
+| `search_qnas` | `query`, `limit?` | Q&A hits with `qna_key`, document number, date, issuing body, related standards, snippet |
 | `get_paragraph` | `unique_key`, `context?` | The paragraph text with `context` neighbors on each side, standard metadata, and `related_qnas` |
-| `get_qna` | `doc_number` | Full text of a Q&A document (an array — some numbers appear more than once) |
+| `get_qna` | `doc_number` or `qna_key` | Full text of a Q&A document (an array — a number can appear more than once or be empty; `qna_key` = `{source}:{id}` pins one row) |
 | `list_standards` | `category?` | Catalog of standards in the corpus with their `std_num` |
 | `get_usage_stats` | `days?` | Aggregate server usage statistics |
 

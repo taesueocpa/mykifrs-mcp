@@ -18,6 +18,7 @@ export function pickTarget(args: Record<string, unknown>): string | null {
     (typeof args.query === "string" && args.query.trim() ? args.query.trim() : undefined) ??
     (typeof args.unique_key === "string" ? args.unique_key : undefined) ??
     (typeof args.doc_number === "string" ? args.doc_number : undefined) ??
+    (typeof args.qna_key === "string" ? args.qna_key : undefined) ??
     (typeof args.category === "string" ? `category:${args.category}` : undefined) ??
     (typeof args.std_num === "number" ? `std:${args.std_num}` : undefined);
   return c ?? null;

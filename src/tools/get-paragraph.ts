@@ -2,6 +2,23 @@ import { z } from "zod";
 import { defineTool } from "./spec.js";
 import { asText } from "../core/result.js";
 
+/**
+ * KASB 는 번호가 없는 블록(부록 도입문·표·양식)과 각주에도 키가 필요해 내부 토큰을 붙인다 —
+ * "웩N"·"왝N" 은 둘 다 기준서에 존재하지 않는 문단번호다. 응답만 봐선 토큰인지 알 수 없어
+ * 그대로 인용하면 없는 문단이 만들어지므로, 소속 섹션 제목과 함께 경고를 동봉한다.
+ * 정상 문단에는 붙지 않는다.
+ */
+function syntheticNote(paraNum: string | null, section: string | null): { note?: string } {
+  if (!paraNum) return {};
+  if (paraNum.startsWith("웩"))
+    return { note: `para_num '${paraNum}' 은 번호 없는 블록(부록 도입문·표·양식)에 KASB 가 붙인 내부 토큰이다`
+      + ` — 문단번호로 인용하지 말고 소속 섹션${section ? ` '${section}'` : ""} 을 인용 앵커로 쓸 것` };
+  if (paraNum.startsWith("왝"))
+    return { note: `para_num '${paraNum}' 은 각주에 붙은 KASB 내부 토큰이다 (숫자는 각주가 달린 문단 번호)`
+      + ` — 본문 첫머리의 '(주N)' 과 그 앵커 문단으로 인용할 것` };
+  return {};
+}
+
 export const getParagraph = defineTool({
   name: "get_paragraph",
   title: "기준서 문단 원문",
@@ -28,9 +45,10 @@ export const getParagraph = defineTool({
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: async ({ unique_key, context }, { corpus }) => {
     const target = corpus.prepare(`
-      SELECT std_num, part_document_id, seq, faq_doc_numbers FROM content_items
+      SELECT std_num, part_document_id, seq, para_num, document_id, faq_doc_numbers FROM content_items
       WHERE unique_key = ?`).get(unique_key) as
-      { std_num: number; part_document_id: string; seq: number; faq_doc_numbers: string | null } | undefined;
+      { std_num: number; part_document_id: string; seq: number; para_num: string | null;
+        document_id: string | null; faq_doc_numbers: string | null } | undefined;
     if (!target) {
       // 수집 원본이 같은 문단번호를 여러 번 내면 키에 "-N" 을 붙여 유일하게 만든다. 그 결과
       // 자연 키("1109-B2.7")로는 조회되지 않는 문단이 코퍼스의 12% 다 — 미스를 "문단이 없다"로
@@ -56,9 +74,15 @@ export const getParagraph = defineTool({
       WHERE std_num = ? AND part_document_id = ? AND seq BETWEEN ? AND ?
       ORDER BY seq`).all(target.std_num, target.part_document_id,
         target.seq - context, target.seq + context);
+    const section = target.document_id
+      ? (corpus.prepare(`SELECT title FROM sections WHERE std_num = ? AND document_id = ?`)
+          .get(target.std_num, target.document_id) as { title: string | null } | undefined)?.title ?? null
+      : null;
     return asText({
       standard: { std_num: target.std_num, ...std },
       target: unique_key,
+      section,
+      ...syntheticNote(target.para_num, section),
       related_qnas: target.faq_doc_numbers ? target.faq_doc_numbers.split(",") : [],
       items,
     });

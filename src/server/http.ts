@@ -8,6 +8,8 @@
  *  - GET  /health       공개 헬스체크 · GET / → eocpa.kr/mykifrs 301
  *
  * 두 MCP 경로의 차이는 프로필뿐이다 — Origin 검증·인증 게이트·usage 로깅은 공통이다.
+ * usage 는 두 층이다: 도구 호출은 dispatch.ts 가 tool_calls 에, /mcp 요청 전량(Origin 403·401·403·
+ * 405 포함)은 이 파일의 logMcpRequest 가 mcp_requests 에 남긴다.
  * `tools/call` 만 토큰을 요구한다: 관리자 토큰(MCP_TOKEN) 또는 eocpa.kr 발급 토큰.
  * 판정 로직은 전부 src/server/auth.ts 소관 — 이 파일은 순서 배선만 소유한다.
  *
@@ -33,16 +35,48 @@ export interface AppDeps {
   allowedOrigins?: readonly string[];
 }
 
+/**
+ * 실제 클라이언트 IP — Fly 프록시 뒤에서는 req.ip 가 프록시 내부 주소라 전 이용자가 한 값으로 뭉친다.
+ * Fly 가 엣지에서 덮어쓰는 Fly-Client-IP 를 먼저 보고, 헤더가 없으면(로컬) 소켓 주소로 떨어진다.
+ */
+export function clientIp(req: express.Request): string {
+  return (req.headers["fly-client-ip"] as string | undefined) || req.ip || req.socket.remoteAddress || "unknown";
+}
+
 /** Express 앱 조립. */
 export function createApp({ corpus, usage, gate, allowedOrigins = [] }: AppDeps): express.Express {
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "4mb" }));
 
+  // /mcp 요청 로그(usage mcp_requests) — 응답이 확정될 때 1행. 요청 하나가 지나는 세 갈래(Origin 403 ·
+  // POST 핸들러 · GET/DELETE 405) 중 정확히 한 곳에서만 건다. 응답 전에 끊긴 연결은 finish 가 안 나
+  // 남지 않는다. 폭주는 UsageDb 의 IP 당 분당 상한이 끊는다.
+  const logMcpRequest = (req: express.Request, res: express.Response, token: string) => {
+    const startedAt = Date.now();
+    const body = Array.isArray(req.body) ? req.body[0] : req.body;
+    const rpc = typeof body?.method === "string" ? (body.method as string) : null;
+    const method = req.method === "POST" ? rpc : req.method;
+    const tool = rpc === "tools/call" && typeof body?.params?.name === "string" ? (body.params.name as string) : null;
+    res.once("finish", () => {
+      usage.recordMcpRequest({
+        method,
+        tool,
+        status: res.statusCode,
+        token,
+        isOwner: gate.isAdmin(token),
+        ip: clientIp(req),
+        ua: req.headers["user-agent"],
+        durationMs: Date.now() - startedAt,
+      });
+    });
+  };
+
   // [MCP 스펙 MUST] /mcp·/mcp/playmcp Origin 검증 — 부재는 통과, 존재하는데 허용목록 밖이면 403(auth.ts).
   app.use("/mcp", (req, res, next) => {
     const origin = req.headers.origin;
     if (origin === undefined || isAllowedMcpOrigin(origin, allowedOrigins)) return next();
+    logMcpRequest(req, res, extractToken(req.headers, req.query.key));
     res.status(403).json({
       jsonrpc: "2.0",
       error: {
@@ -61,6 +95,7 @@ export function createApp({ corpus, usage, gate, allowedOrigins = [] }: AppDeps)
 
   const mcpHandler = (profile: McpProfile) => async (req: express.Request, res: express.Response) => {
     const token = extractToken(req.headers, req.query.key);
+    logMcpRequest(req, res, token);
     // 자격 요구 범위와 거부 코드는 auth.ts 가 판정한다:
     //   ① tools/call 만 자격을 요구한다 — 핸드셰이크·디스커버리(initialize·tools/list·ping)는 무자격 통과.
     //   ② 제시됐으나 거부된 자격은 403, 미제시만 401.
@@ -99,7 +134,8 @@ export function createApp({ corpus, usage, gate, allowedOrigins = [] }: AppDeps)
   app.post("/mcp/playmcp", mcpHandler("playmcp"));
 
   // stateless 모드: 세션 재개(GET SSE)·세션 종료(DELETE) 미지원
-  const methodNotAllowed = (_req: express.Request, res: express.Response) => {
+  const methodNotAllowed = (req: express.Request, res: express.Response) => {
+    logMcpRequest(req, res, extractToken(req.headers, req.query.key));
     res.status(405).set("Allow", "POST").send();
   };
   for (const path of ["/mcp", "/mcp/playmcp"]) {

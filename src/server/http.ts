@@ -152,7 +152,7 @@ export async function serveHttp(): Promise<void> {
   const anonymous = resolveAnonymous(process.env);
   if (anonymous.warn) console.error(anonymous.warn);
   if (!MCP_TOKEN && !anonymous.allow)
-    console.error("MCP_TOKEN 미설정 — 관리자 경로(상세 통계) 비활성. /mcp 는 발급 토큰만 수락한다");
+    console.error("MCP_TOKEN 미설정 — 관리자 토큰 비활성. /mcp 는 발급 토큰만 수락한다");
 
   // 부팅 검증 포함(파일 존재·FTS 인덱스) — 실패는 CorpusError 로 즉시 중단된다.
   const corpus = openCorpus();

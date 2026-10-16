@@ -22,7 +22,6 @@ A language model can paraphrase an accounting standard; a practitioner has to ci
 | `get_paragraph` | `unique_key`, `context?` | The paragraph text with `context` neighbors on each side, standard metadata, and `related_qnas` |
 | `get_qna` | `doc_number` or `qna_key` | Full text of a Q&A document (an array — a number can appear more than once or be empty; `qna_key` = `{source}:{id}` pins one row) |
 | `list_standards` | `category?` | Catalog of standards in the corpus with their `std_num` |
-| `get_usage_stats` | `days?` | Aggregate server usage statistics |
 
 Every tool is read-only, idempotent, and local (SQLite + FTS5). No external call is made while serving a request.
 
@@ -88,7 +87,7 @@ A tool call without a credential returns `401`; a credential that is present but
 
 ### PlayMCP channel
 
-`https://mykifrs.eocpa.kr/mcp/playmcp` is the same server behind the same authentication, with the response contract the PlayMCP platform requires: every tool result stays within 24,000 characters. Results that would exceed it are structurally truncated (array tails and the longest strings are shortened) and flagged with `playmcp_truncated: true`, a `playmcp_truncation_note`, and `playmcp_text_truncated` on any object whose text was cut. `get_usage_stats` is not registered on this channel. The standard `/mcp` endpoint never truncates.
+`https://mykifrs.eocpa.kr/mcp/playmcp` is the same server behind the same authentication, with the response contract the PlayMCP platform requires: every tool result stays within 24,000 characters. Results that would exceed it are structurally truncated (array tails and the longest strings are shortened) and flagged with `playmcp_truncated: true`, a `playmcp_truncation_note`, and `playmcp_text_truncated` on any object whose text was cut. The standard `/mcp` endpoint never truncates.
 
 ## Data and terms of use
 

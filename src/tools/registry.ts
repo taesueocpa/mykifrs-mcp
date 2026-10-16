@@ -13,7 +13,6 @@ import { searchQnas } from "./search-qnas.js";
 import { getParagraph } from "./get-paragraph.js";
 import { getQna } from "./get-qna.js";
 import { listStandards } from "./list-standards.js";
-import { getUsageStats } from "./get-usage-stats.js";
 
 // eslint 없음 — 타입만 넓힌다(개별 파일은 Shape 를 좁게 유지).
 export const TOOLS: ReadonlyArray<ToolSpec<any>> = [
@@ -22,5 +21,4 @@ export const TOOLS: ReadonlyArray<ToolSpec<any>> = [
   getParagraph,
   getQna,
   listStandards,
-  getUsageStats,
 ];

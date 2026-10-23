@@ -8,6 +8,9 @@
  *  - GET  /health       공개 헬스체크 · GET / → eocpa.kr/mykifrs 301
  *
  * 두 MCP 경로의 차이는 프로필뿐이다 — Origin 검증·인증 게이트·usage 로깅은 공통이다.
+ * 두 경로 모두 dual-era 다: SDK 의 `isLegacyRequest` 로 가려, 모던(MCP 2026-07-28)은
+ * `createMcpHandler` 레그가, 2025-era(`initialize` 핸드셰이크)는 Streamable HTTP 전송 레그가 맡는다.
+ * 두 레그 모두 같은 팩토리(build-server.ts)가 만든 서버를 쓴다 — 도구 정의는 한 곳이다.
  * usage 는 두 층이다: 도구 호출은 dispatch.ts 가 tool_calls 에, /mcp 요청 전량(Origin 403·401·403·
  * 405 포함)은 이 파일의 logMcpRequest 가 mcp_requests 에 남긴다.
  * `tools/call` 만 토큰을 요구한다: 관리자 토큰(MCP_TOKEN) 또는 eocpa.kr 발급 토큰.
@@ -18,7 +21,8 @@
  */
 import express from "express";
 import type Database from "better-sqlite3";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createMcpHandler, isLegacyRequest } from "@modelcontextprotocol/server";
+import { NodeStreamableHTTPServerTransport, toNodeHandler, toWebRequest } from "@modelcontextprotocol/node";
 import { openCorpus } from "../store/kasb-db.js";
 import { UsageDb } from "../store/usage-db.js";
 import { buildServer } from "./build-server.js";
@@ -89,6 +93,47 @@ export function createApp({ corpus, usage, gate, allowedOrigins = [] }: AppDeps)
     });
   });
 
+  /**
+   * 모던 레그의 usage 세션 — 팩토리는 요청 객체만 받으므로(McpRequestContext.requestInfo) 토큰을
+   * 여기서 다시 꺼낸다. 슬롯 우선순위·판정은 auth.ts `extractToken` 한 곳이 소유하고, 이 함수는
+   * web `Request` 를 그 입력 꼴로 옮기는 어댑터일 뿐이다(정책 복제가 아니다).
+   */
+  const sessionFromRequest = (request: Request | undefined) => {
+    const h = request?.headers;
+    const key = request ? new URL(request.url).searchParams.get("key") : null;
+    const token = extractToken(
+      {
+        authorization: h?.get("authorization") ?? undefined,
+        "x-eocpa-token": h?.get("x-eocpa-token") ?? undefined,
+        "x-api-key": h?.get("x-api-key") ?? undefined,
+      },
+      key ?? undefined,
+    );
+    return gate.sessionFor(token, h?.get("user-agent") ?? undefined);
+  };
+
+  /**
+   * 모던(2026-07-28) 레그 — **프로세스당 프로필별 1벌**. 핸들러가 요청마다 팩토리를 부르므로
+   * 서버 인스턴스는 여전히 요청 단위다(stateless). 요청마다 createMcpHandler 를 만들면
+   * `responseMode: "json"` 고지가 요청마다 로그에 찍힌다 — 그래서 여기서 한 번만 만든다.
+   *   legacy: "reject" = 이 레그는 모던 전용이고 2025-era 는 아래 전송 배선이 그대로 서빙한다.
+   *   responseMode: "json" = 중간 알림을 보내지 않으므로 단일 JSON 응답.
+   */
+  const modernMcp: Record<McpProfile, ReturnType<typeof toNodeHandler>> = {
+    full: toNodeHandler(
+      createMcpHandler(
+        (mcpCtx) => buildServer({ corpus, usage, session: sessionFromRequest(mcpCtx.requestInfo) }, { profile: "full" }),
+        { legacy: "reject", responseMode: "json" },
+      ),
+    ),
+    playmcp: toNodeHandler(
+      createMcpHandler(
+        (mcpCtx) => buildServer({ corpus, usage, session: sessionFromRequest(mcpCtx.requestInfo) }, { profile: "playmcp" }),
+        { legacy: "reject", responseMode: "json" },
+      ),
+    ),
+  };
+
   app.get("/health", (_req, res) => { res.json({ ok: true }); });
   // 랜딩은 eocpa.kr 로 통합 — /mcp·/health 이외의 웹 표면은 여기 없다.
   app.get("/", (_req, res) => { res.redirect(301, "https://eocpa.kr/mykifrs"); });
@@ -114,13 +159,27 @@ export function createApp({ corpus, usage, gate, allowedOrigins = [] }: AppDeps)
     }
     // 요청마다 새 서버 인스턴스(stateless). 세션 = 토큰 해시 + 운영자 여부(관리자 토큰 일치만).
     const session = gate.sessionFor(token, req.headers["user-agent"]);
+
     try {
+      // era 분기 — SDK 자신의 분류기로 가린다(엔트리가 쓰는 바로 그 함수). 모던 envelope(요청마다
+      // `_meta` 로 버전을 주장하는 2026-07-28)이면 modern 레그, 아니면(`initialize`·2025-era POST)
+      // legacy 레그다. express.json 이 본문을 이미 소진했으므로 parsedBody 로 넘긴다(스트림 재독 없음).
+      // 두 era 가 같은 인증 게이트·요청로그·세션을 지나온 뒤라 갈리는 것은 유선 형식뿐이고,
+      // 분기도 이 try 안이라 어느 레그의 예상 못 한 예외든 아래 catch 가 500 으로 받는다.
+      const legacyEra = await isLegacyRequest(await toWebRequest(req, req.body), req.body);
+
+      if (!legacyEra) {
+        // 모던(2026-07-28) — `server/discover`·`resultType`·헤더-본문 대조·캐시 힌트는 SDK 가 처리한다.
+        await modernMcp[profile](req, res, req.body);
+        return;
+      }
+
       const server = buildServer({ corpus, usage, session }, { profile });
-      const transport = new StreamableHTTPServerTransport({
+      const transport = new NodeStreamableHTTPServerTransport({
         sessionIdGenerator: undefined, // stateless
         enableJsonResponse: true,
       });
-      res.on("close", () => { transport.close(); server.close(); });
+      res.on("close", () => { void transport.close(); void server.close(); });
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
     } catch (err) {
@@ -166,7 +225,7 @@ export async function serveHttp(): Promise<void> {
   const allowedOrigins = allowedOriginsFromEnv(process.env.MCP_ALLOWED_ORIGINS);
   createApp({ corpus, usage, gate, allowedOrigins }).listen(PORT, () => {
     console.log(
-      `mykifrs MCP 서버: :${PORT} (/mcp · /mcp/playmcp, ` +
+      `mykifrs MCP 서버: :${PORT} (/mcp · /mcp/playmcp, dual-era: 2025-era + 2026-07-28, ` +
       `인증: ${anonymous.allow ? "OFF — 로컬 개방 모드" : "ON"}, 관리자 토큰: ${MCP_TOKEN ? "설정됨" : "없음"})`,
     );
   });

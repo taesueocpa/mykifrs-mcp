@@ -5,6 +5,7 @@ Full-text search over Korean accounting standards and the official Q&A that inte
 The corpus covers K-IFRS, K-GAAP (일반기업회계기준), interpretations, the Conceptual Framework, Korean auditing standards, ICFR (내부회계관리제도) standards, KSSB sustainability disclosure standards, and 3,669 authoritative Q&A (회계기준원·금융감독원·신속처리질의·IFRS IC agenda decisions). Standards are stored paragraph by paragraph, and each paragraph carries the Q&A that cite it.
 
 - Endpoint: `https://mykifrs.eocpa.kr/mcp` (Streamable HTTP, stateless)
+- Protocol: MCP revision `2026-07-28` (per-request metadata, `server/discover`, no handshake) and `2025-11-25` and earlier (`initialize`) are both served on that one endpoint
 - Credential: an eocpa token from [eocpa.kr/token](https://eocpa.kr/token)
 - Nothing to install: register the URL in claude.ai, Claude Desktop, Claude Code, Cursor, or any Streamable HTTP client
 - Landing page (Korean): [eocpa.kr/mykifrs](https://eocpa.kr/mykifrs)

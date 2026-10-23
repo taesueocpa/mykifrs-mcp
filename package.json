@@ -1,6 +1,6 @@
 {
   "name": "mykifrs-mcp",
-  "version": "0.13.0",
+  "version": "0.15.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -11,15 +11,18 @@
     "stdio": "node build/main.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/node": "^2.1.1",
+    "@modelcontextprotocol/server": "^2.3.1",
     "better-sqlite3": "^12.2.0",
     "express": "^5.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
+    "kordoc": "^3.18.1",
     "typescript": "^5.8.0"
   }
 }

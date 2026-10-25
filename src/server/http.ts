@@ -100,7 +100,10 @@ export function createApp({ corpus, usage, gate, allowedOrigins = [] }: AppDeps)
    */
   const sessionFromRequest = (request: Request | undefined) => {
     const h = request?.headers;
-    const key = request ? new URL(request.url).searchParams.get("key") : null;
+    // `?key=` 가 여럿이면 Express 는 배열로 읽어 extractToken 이 버린다 — 여기서도 하나일 때만 받는다
+    // (게이트가 본 자격과 usage 세션의 자격이 갈리지 않게).
+    const keys = request ? new URL(request.url).searchParams.getAll("key") : [];
+    const key = keys.length === 1 ? keys[0] : null;
     const token = extractToken(
       {
         authorization: h?.get("authorization") ?? undefined,

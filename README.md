@@ -2,7 +2,9 @@
 
 Full-text search over Korean accounting standards and the official Q&A that interprets them, served as a remote [MCP](https://modelcontextprotocol.io) server for accounting professionals.
 
-The corpus covers K-IFRS, K-GAAP (일반기업회계기준), interpretations, the Conceptual Framework, Korean auditing standards, ICFR (내부회계관리제도) standards, KSSB sustainability disclosure standards, and 3,669 authoritative Q&A (회계기준원·금융감독원·신속처리질의·IFRS IC agenda decisions). Standards are stored paragraph by paragraph, and each paragraph carries the Q&A that cite it.
+The corpus covers K-IFRS, K-GAAP (일반기업회계기준), interpretations, the Conceptual Framework, Korean auditing standards, ICFR (내부회계관리제도) standards, SME and non-profit accounting standards, the authoritative Q&A (회계기준원·금융감독원·신속처리질의·IFRS IC agenda decisions), KASB implementation task force (정착지원TF) discussions and audit-firm quality control meetings (품질관리실장 회의), KICPA quality control, review, assurance, ethics and valuation standards (latest editions), regulator-issued standards such as the non-profit (공익법인) and condominium (집합건물) accounting standards, and supporting material — Q&A education, exposure drafts, IASB updates, research reports, and KICPA auditor-disagreement council cases. Standards are stored paragraph by paragraph, and each paragraph carries the Q&A that cite it. Q&A and material that lost force after a standard changed are flagged (`validity`), together with the source that says so.
+
+Sources are ranked in two tiers, and tier 1 is served by the two core search tools: `search_standards` returns standard paragraphs together with the KICPA- and regulator-issued standards, and `search_qnas` returns Q&A together with 정착지원TF and quality control meeting material. `search_materials` covers tier 2 — supporting material.
 
 - Endpoint: `https://mykifrs.eocpa.kr/mcp` (Streamable HTTP, stateless)
 - Protocol: MCP revision `2026-07-28` (per-request metadata, `server/discover`, no handshake) and `2025-11-25` and earlier (`initialize`) are both served on that one endpoint
@@ -18,11 +20,13 @@ A language model can paraphrase an accounting standard; a practitioner has to ci
 
 | Tool | Input | Returns |
 |---|---|---|
-| `search_standards` | `query`, `std_num?`, `limit?` | Paragraph hits across all standards (`unique_key`, standard title, category, snippet), relevance-ranked |
-| `search_qnas` | `query`, `limit?` | Q&A hits with `qna_key`, document number, date, issuing body, related standards, snippet |
+| `search_standards` | `query`, `category?`, `std_num?`, `limit?` | One relevance-ranked list of standard paragraphs (`kind: "paragraph"` — `unique_key`, standard title, category, snippet) and KICPA quality control/review/assurance/ethics standards and regulator-issued standards (`kind: "assure"`·`"ext_std"` — `material_key` for `get_material`); `category` narrows to one family (K-IFRS, K-GAAP, auditing, SME, …) |
+| `search_qnas` | `query`, `limit?` | One relevance-ranked list of Q&A (`kind: "qna"` — `qna_key`, document number, date, issuing body, related standards; withdrawn or amended Q&A carry `validity`) and 정착지원TF / quality control meeting material (`kind: "tf"`·`"qc"` — `material_key` for `get_material`) |
 | `get_paragraph` | `unique_key`, `context?` | The paragraph text with `context` neighbors on each side, standard metadata, and `related_qnas` |
 | `get_qna` | `doc_number` or `qna_key` | Full text of a Q&A document (an array — a number can appear more than once or be empty; `qna_key` = `{source}:{id}` pins one row) |
 | `list_standards` | `category?` | Catalog of standards in the corpus with their `std_num` |
+| `search_materials` | `query`, `board?`, `limit?` | Supporting material — Q&A education, exposure drafts, IASB updates, research reports, KICPA council cases, valuation material (`material_key`, board, category, date, snippet); material that lost force carries `validity` |
+| `get_material` | `material_key`, `max_chars?`, `offset_chars?` | Full text of one material, including the parsed text of its attachments; long texts continue with `offset_chars` |
 
 Every tool is read-only, idempotent, and local (SQLite + FTS5). No external call is made while serving a request.
 

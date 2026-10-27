@@ -10,6 +10,16 @@
  * 두 세대에 같은 번호로 중복될 수 있고, id 는 세대 간에 충돌하므로 둘을 합친 키만 단건을 특정한다.
  */
 
+import { VALIDITY_NOTE, type Validity } from "../store/validity.js";
+
+/**
+ * 효력 표시 — KASB 정비목록·비교표가 폐기·수정·공개제외한 회신에만 붙는다(나머지 응답은 그대로).
+ * 소비 규칙은 note 로 응답에 실어 보낸다 — 표시가 드물어 description 에 두면 매번 1,024자 예산만 쓴다.
+ */
+export function validityField(v: Validity[] | undefined): { validity?: { note: string; marks: Validity[] } } {
+  return v && v.length ? { validity: { note: VALIDITY_NOTE, marks: v } } : {};
+}
+
 /** legacy 유형 코드 → 회신 기관. 라벨은 v2 qna_types 의 title 과 같은 어휘를 쓴다(org 가 세대를 가리지 않게). */
 export const LEGACY_ORG: Readonly<Record<number, string>> = {
   1: "회계기준원",               // GKQA·YYYY-G-KQA 계열 — 일반기업회계기준(구 기업회계기준) 질의회신

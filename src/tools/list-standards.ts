@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { defineTool } from "./spec.js";
 import { asText } from "../core/result.js";
+import { STANDARD_CATEGORIES, STANDARD_CATEGORY_KEYS } from "../store/kasb-db.js";
+
+const CATEGORY_LEGEND = STANDARD_CATEGORY_KEYS.map((k) => `${k}(${STANDARD_CATEGORIES[k]})`).join(" · ");
 
 export const listStandards = defineTool({
   name: "list_standards",
@@ -11,10 +14,9 @@ export const listStandards = defineTool({
 2. "감사기준서만" → category="audit"
 3. "내부회계관리제도 관련" → category="icfr"`,
   response: `- { count, standards:[{std_num, title, category}] }
-- category values: kifrs(한국채택국제회계기준) · interpretation(해석서) · concept(재무보고를 위한 개념체계)
-  · kgaap(일반기업회계기준) · audit(감사기준서) · icfr(내부회계관리제도) · esg(KSSB 지속가능성 공시기준)
-  · translation(번역본) · special(특수분야).`,
+- category values: ${CATEGORY_LEGEND}.`,
   rules: `- Lists 수집 성공(crawl_status='ok') 기준서 only — an absent 기준서 means "미수집", not "존재하지 않음".
+- 감사인증·윤리기준 (검토·인증·품질관리 등)과 고시 원문 are outside this catalog — search_standards category="assure"·"ext_std".
 - category is a free-form string, not an enum: an unknown value returns count=0, not an error.`,
   input: {
     category: z.string().optional().describe("카테고리로 필터 (생략 시 전체)"),

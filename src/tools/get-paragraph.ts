@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { defineTool } from "./spec.js";
 import { asText } from "../core/result.js";
+import { VALIDITY_NOTE, validityByDoc } from "../store/validity.js";
 
 /**
  * KASB 는 번호가 없는 블록(부록 도입문·표·양식)과 각주에도 키가 필요해 내부 토큰을 붙인다 —
@@ -78,12 +79,18 @@ export const getParagraph = defineTool({
       ? (corpus.prepare(`SELECT title FROM sections WHERE std_num = ? AND document_id = ?`)
           .get(target.std_num, target.document_id) as { title: string | null } | undefined)?.title ?? null
       : null;
+    const related = target.faq_doc_numbers ? target.faq_doc_numbers.split(",") : [];
+    // 문단에 걸린 회신이 정비목록·비교표에서 폐기·수정됐으면 따로 알린다 — 문단은 현행인데 회신만 효력을 잃는
+    // 경우라, 모르고 get_qna 로 따라가면 폐기된 회신을 근거로 인용하게 된다.
+    const v = validityByDoc(corpus, related);
+    const invalid = related.filter((d) => v.has(d)).map((d) => ({ doc_number: d, marks: v.get(d)! }));
     return asText({
       standard: { std_num: target.std_num, ...std },
       target: unique_key,
       section,
       ...syntheticNote(target.para_num, section),
-      related_qnas: target.faq_doc_numbers ? target.faq_doc_numbers.split(",") : [],
+      related_qnas: related,
+      ...(invalid.length ? { invalid_related_qnas: { note: VALIDITY_NOTE, items: invalid } } : {}),
       items,
     });
   },

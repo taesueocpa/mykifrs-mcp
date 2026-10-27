@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { defineTool } from "./spec.js";
 import { asText } from "../core/result.js";
-import { parseQnaKey, qnaKey, qnaMeta, type QnaRow } from "./qna-shared.js";
+import { parseQnaKey, qnaKey, qnaMeta, validityField, type QnaRow } from "./qna-shared.js";
+import { validityByDoc, type Validity } from "../store/validity.js";
 
 type FullRow = QnaRow & { full_content: string | null };
 
@@ -11,11 +12,11 @@ const SELECT = `
   FROM qnas q LEFT JOIN qna_types t ON t.type = q.type`;
 
 /** 전문 행 정형화 — 공통 메타 사이에 full_content 를 끼운다(키 순서는 응답 텍스트의 일부). */
-function full(r: FullRow) {
+function full(r: FullRow, v: Map<string, Validity[]>) {
   const m = qnaMeta(r);
   return {
     source: m.source, qna_key: m.qna_key, doc_number: m.doc_number, date: m.date, title: m.title,
-    rel_stds: m.rel_stds, full_content: r.full_content, org: m.org,
+    rel_stds: m.rel_stds, full_content: r.full_content, org: m.org, ...validityField(v.get(r.doc_number ?? "")),
   };
 }
 
@@ -48,7 +49,8 @@ export const getQna = defineTool({
       if (!k) return asText({ error: `qna_key 형식 오류: ${qna_key}` });
       const rows = corpus.prepare(`${SELECT} WHERE q.source = ? AND q.id = ?`).all(k.source, k.id) as FullRow[];
       if (rows.length === 0) return asText({ error: `qna_key 없음: ${qna_key}` });
-      return asText({ results: rows.map(full) });
+      const v = validityByDoc(corpus, rows.map((r) => r.doc_number));
+      return asText({ results: rows.map((r) => full(r, v)) });
     }
     // 빈 번호를 그대로 조회하면 번호 없는 행 전부(구 IFRS IC 논의 요약)가 돌아온다 — 인자 부재로 다룬다.
     if (doc_number == null || doc_number.trim() === "") return asText({ error: "doc_number 또는 qna_key 필요" });
@@ -65,6 +67,7 @@ export const getQna = defineTool({
         })),
       });
     }
-    return asText({ results: rows.map(full) });
+    const v = validityByDoc(corpus, rows.map((r) => r.doc_number));
+    return asText({ results: rows.map((r) => full(r, v)) });
   },
 });

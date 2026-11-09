@@ -14,16 +14,10 @@ export const MATERIAL_BOARDS = {
   assure: { label: "감사인증·윤리기준(KICPA, 최신판 — 품질관리·검토·인증·윤리·가치평가서비스 수행기준 등)", tier: 1 },
   ext_std: { label: "외부 기관 기준·고시(공익법인·집합건물 회계처리기준, 분·반기 검토준칙, 공공감사기준 등)", tier: 1 },
   qna_maint: { label: "질의회신 정비목록", tier: 2 },
-  edu: { label: "질의회신 교육자료", tier: 2 },
   project: { label: "제정개정과제", tier: 2 },
-  consult: { label: "의견조회", tier: 2 },
   ed: { label: "공개초안", tier: 2 },
-  comment: { label: "IFRS 검토의견", tier: 2 },
-  trend: { label: "IASB 동향", tier: 2 },
   amend: { label: "제·개정 공표", tier: 2 },
-  research: { label: "연구보고서·KARI Report", tier: 2 },
   glossary: { label: "K-IFRS 주요용어", tier: 2 },
-  event: { label: "세미나·KAI Forum", tier: 2 },
   kicpa_council: { label: "전·당기 감사인 의견불일치 조정 협의회 사례(KICPA)", tier: 2 },
   valuation: { label: "가치평가 자료실(KICPA — 위험 프리미엄·IVS·외부평가 서식)", tier: 2 },
 } as const satisfies Record<string, { label: string; tier: 1 | 2 }>;
@@ -119,8 +113,8 @@ CREATE TABLE IF NOT EXISTS qna_types (
   sort          INTEGER
 );
 
--- KASB 홈페이지(www.kasb.or.kr) 자료: 정착지원TF·질의회신 정비목록·질의회신 교육·제정개정과제·의견조회·
--- 기고자료 + KICPA 게시판·외부 기관 고시. 회신이 아니라서 qnas 와 나눈다. body 는 상세 본문 + 첨부 파싱 본문
+-- KASB 홈페이지(www.kasb.or.kr) 자료: 정착지원TF·질의회신 정비목록·제정개정과제·제정개정자료
+-- + KICPA 게시판·외부 기관 고시. 회신이 아니라서 qnas 와 나눈다. body 는 상세 본문 + 첨부 파싱 본문
 -- (첨부마다 "[첨부] 파일명" 머리). id 는 원천 게시물 번호(KASB seq·KICPA bltnNo·법령정보센터 일련번호) —
 -- 게시판(board)마다 번호 공간이 따로다.
 CREATE TABLE IF NOT EXISTS materials (

@@ -3,7 +3,7 @@
   "name": "kr.eocpa/mykifrs",
   "title": "MyKIFRS",
   "description": "Full-text search over K-IFRS/K-GAAP standards, Q&A and KASB/KICPA material for Korean accountants",
-  "version": "0.19.0",
+  "version": "0.19.1",
   "websiteUrl": "https://eocpa.kr/mykifrs",
   "remotes": [
     {

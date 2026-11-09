@@ -52,8 +52,7 @@ function deriveMaterialValidity(db: Database.Database): Array<{ board: string; i
   type M = { board: string; id: number; title: string; date: string | null; head: string };
   const all = db.prepare(`SELECT board, id, title, date, substr(COALESCE(body, ''), 1, 800) head FROM materials`).all() as M[];
   const nums = (m: M) => stdNums(`${m.title} ${m.head}`);
-  const isDraft = (m: M) => m.board === "ed" || m.board === "comment"
-    || (m.board === "event" && /공개초안|\bED\b|검토의견/.test(m.title));
+  const isDraft = (m: M) => m.board === "ed";
   const amends = all.filter((m) => m.board === "amend" && m.date);
   const out: Array<{ board: string; id: number; status: string; basis: string; source: string }> = [];
   for (const d of all.filter((m) => isDraft(m) && m.date)) {

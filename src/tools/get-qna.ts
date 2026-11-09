@@ -11,7 +11,6 @@ const SELECT = `
          t.title AS type_title
   FROM qnas q LEFT JOIN qna_types t ON t.type = q.type`;
 
-/** 전문 행 정형화 — 공통 메타 사이에 full_content 를 끼운다(키 순서는 응답 텍스트의 일부). */
 function full(r: FullRow, v: Map<string, Validity[]>) {
   const m = qnaMeta(r);
   return {
@@ -52,7 +51,7 @@ export const getQna = defineTool({
       const v = validityByDoc(corpus, rows.map((r) => r.doc_number));
       return asText({ results: rows.map((r) => full(r, v)) });
     }
-    // 빈 번호를 그대로 조회하면 번호 없는 행 전부(구 IFRS IC 논의 요약)가 돌아온다 — 인자 부재로 다룬다.
+    // 빈 번호로 조회하면 번호 없는 행이 전부 나온다
     if (doc_number == null || doc_number.trim() === "") return asText({ error: "doc_number 또는 qna_key 필요" });
 
     const rows = corpus.prepare(`${SELECT} WHERE q.doc_number = ?`).all(doc_number) as FullRow[];

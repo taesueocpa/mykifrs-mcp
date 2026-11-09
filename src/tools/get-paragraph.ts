@@ -3,12 +3,7 @@ import { defineTool } from "./spec.js";
 import { asText } from "../core/result.js";
 import { VALIDITY_NOTE, validityByDoc } from "../store/validity.js";
 
-/**
- * KASB 는 번호가 없는 블록(부록 도입문·표·양식)과 각주에도 키가 필요해 내부 토큰을 붙인다 —
- * "웩N"·"왝N" 은 둘 다 기준서에 존재하지 않는 문단번호다. 응답만 봐선 토큰인지 알 수 없어
- * 그대로 인용하면 없는 문단이 만들어지므로, 소속 섹션 제목과 함께 경고를 동봉한다.
- * 정상 문단에는 붙지 않는다.
- */
+// 웩N·왝N 은 KASB 가 번호 없는 블록과 각주에 붙인 내부 키라 실제 문단번호가 아니다
 function syntheticNote(paraNum: string | null, section: string | null): { note?: string } {
   if (!paraNum) return {};
   if (paraNum.startsWith("웩"))
@@ -51,9 +46,7 @@ export const getParagraph = defineTool({
       { std_num: number; part_document_id: string; seq: number; para_num: string | null;
         document_id: string | null; faq_doc_numbers: string | null } | undefined;
     if (!target) {
-      // 수집 원본이 같은 문단번호를 여러 번 내면 키에 "-N" 을 붙여 유일하게 만든다. 그 결과
-      // 자연 키("1109-B2.7")로는 조회되지 않는 문단이 코퍼스의 12% 다 — 미스를 "문단이 없다"로
-      // 읽으면 근거를 통째로 놓치므로, get_qna 와 같은 방식으로 후보를 함께 돌려준다.
+      // 같은 문단번호가 여러 번 나오면 키에 -N 이 붙어 자연 키로는 조회되지 않는다
       const dash = unique_key.indexOf("-");
       const std = dash > 0 ? Number(unique_key.slice(0, dash)) : NaN;
       const para = dash > 0 ? unique_key.slice(dash + 1) : "";
@@ -80,8 +73,6 @@ export const getParagraph = defineTool({
           .get(target.std_num, target.document_id) as { title: string | null } | undefined)?.title ?? null
       : null;
     const related = target.faq_doc_numbers ? target.faq_doc_numbers.split(",") : [];
-    // 문단에 걸린 회신이 정비목록·비교표에서 폐기·수정됐으면 따로 알린다 — 문단은 현행인데 회신만 효력을 잃는
-    // 경우라, 모르고 get_qna 로 따라가면 폐기된 회신을 근거로 인용하게 된다.
     const v = validityByDoc(corpus, related);
     const invalid = related.filter((d) => v.has(d)).map((d) => ({ doc_number: d, marks: v.get(d)! }));
     return asText({

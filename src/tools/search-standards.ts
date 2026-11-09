@@ -6,10 +6,6 @@ import { MATERIAL_BOARDS, STANDARD_CATEGORIES, STANDARD_CATEGORY_KEYS } from "..
 import { validityByMaterial } from "../store/validity.js";
 import { materialKey, materialValidityField, mergeWithFloor, searchMaterialRows, STANDARD_BOARDS } from "./material-shared.js";
 
-/**
- * category 인자 값 = 본문이 있는 기준서 카테고리 + 기준·고시 원문 게시판. assurance(검토·인증업무 기준)는 KASB 에
- * 목록만 있어 빼고, 그 본문(KICPA 판)은 assure 로 찾는다.
- */
 const FAMILIES = [...STANDARD_CATEGORY_KEYS.filter((k) => k !== "assurance"), ...STANDARD_BOARDS] as [string, ...string[]];
 const FAMILY_LEGEND = FAMILIES.map((k) =>
   `${k}(${k in STANDARD_CATEGORIES ? STANDARD_CATEGORIES[k as keyof typeof STANDARD_CATEGORIES]

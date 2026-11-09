@@ -53,7 +53,6 @@ export const searchQnas = defineTool({
       score: r.score, material: false,
       item: { kind: "qna", ...qnaMeta(r), ...validityField(vmap.get(r.doc_number ?? "")), snippet: r.snippet } as object,
     }));
-    // 실무 해석 — 같은 검색어·같은 FTS 규칙(searchMaterialRows). 합치는 규칙은 mergeWithFloor 하나.
     const practice = searchMaterialRows(corpus, { match, short }, { boards: PRACTICE_BOARDS, limit }).map((p) => ({
       score: p.score, material: true,
       item: { kind: p.board, material_key: materialKey(p.board, p.id), category: p.category, date: p.date, title: p.title,

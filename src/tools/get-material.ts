@@ -28,8 +28,6 @@ export const getMaterial = defineTool({
     offset_chars: z.number().optional().default(0).describe("본문 시작 오프셋 (긴 자료 이어읽기)"),
   },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-  // PlayMCP 채널: 첨부를 붙인 본문은 길다(교육자료·TF 회차 PDF/HWP). offset_chars 이어읽기와 truncated
-  // 표식이 있어 18,000 자로 줄여도 답에 닿는 데 지장 없다(myfss get_document 와 같은 값).
   liteDefaults: { max_chars: 18000 },
   handler: async ({ material_key, max_chars, offset_chars }, { corpus }) => {
     const k = parseMaterialKey(material_key);

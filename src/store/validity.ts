@@ -36,7 +36,6 @@ export function parseComparisonTable(title: string, body: string): Array<{ doc: 
     if (c.length < 8 || !/^G?KQA\d{2}-\d{3,4}$/.test(c[3])) continue;
     const status = c[6];
     if (!["공개제외", "수정공개", "폐기"].includes(status)) continue;
-    // kordoc 이 셀 안 마크다운 기호를 이스케이프해 둔 것을 푼다
     const why = c[7].replace(/<br\s*\/?>/gi, " ").replace(/\\([*~_`|\\])/g, "$1").replace(/\s+/g, " ").trim();
     out.push({ doc: c[3], status, basis: `${title}: ${status}${why ? ` — ${why}` : ""}` });
   }

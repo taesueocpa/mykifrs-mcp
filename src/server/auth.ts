@@ -1,7 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { hashToken, type Session } from "../store/usage-db.js";
 
-// 배포 환경(FLY_APP_NAME)에서는 무인증 opt-in 을 무시한다
 export function resolveAnonymous(env: {
   MYKIFRS_ALLOW_ANONYMOUS?: string;
   FLY_APP_NAME?: string;
@@ -59,7 +58,7 @@ export class TokenGate {
         `${this.cfg.validateUrl}?key=${encodeURIComponent(token)}&svc=kifrs`,
         { signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS) },
       );
-      if (!r.ok) return false; // 검증 서버 오류는 차단하고 캐시하지 않는다
+      if (!r.ok) return false;
       const { valid } = (await r.json()) as { valid: boolean };
       this.cache.set(token, { valid, exp: now + (valid ? VALID_TTL_MS : INVALID_TTL_MS) });
       if (this.cache.size > CACHE_CAP) this.cache.clear();
@@ -92,18 +91,15 @@ export function extractToken(
   return raw.trim();
 }
 
-// tools/call 만 자격을 요구한다. 커넥터는 등록할 때 자격 없이 tools/list 를 부른다
 export function requiresCredential(body: unknown): boolean {
   const items = Array.isArray(body) ? body : [body];
   return items.some((b) => (b as { method?: unknown } | null | undefined)?.method === "tools/call");
 }
 
-// 자격을 냈는데 거부되면 403. 401 은 클라이언트가 OAuth 시작으로 읽는다
 export function deniedStatus(token: string | undefined): 401 | 403 {
   return token ? 403 : 401;
 }
 
-// DNS rebinding 방어. Origin 이 없는 요청은 통과, localhost 는 항상 허용
 const LOCAL_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 export function isAllowedMcpOrigin(origin: string, extraAllowed: readonly string[] = []): boolean {
   const norm = origin.trim().replace(/\/+$/, "").toLowerCase();

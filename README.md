@@ -20,8 +20,8 @@ A language model can paraphrase an accounting standard; a practitioner has to ci
 
 | Tool | Input | Returns |
 |---|---|---|
-| `search_standards` | `query`, `category?`, `std_num?`, `limit?` | One relevance-ranked list of standard paragraphs (`kind: "paragraph"` — `unique_key`, standard title, category, snippet) and KICPA quality control/review/assurance/ethics standards and regulator-issued standards (`kind: "assure"`·`"ext_std"` — `material_key` for `get_material`); `category` narrows to one family (K-IFRS, K-GAAP, auditing, SME, …) |
-| `search_qnas` | `query`, `limit?` | One relevance-ranked list of Q&A (`kind: "qna"` — `qna_key`, document number, date, issuing body, related standards; withdrawn or amended Q&A carry `validity`) and 정착지원TF / quality control meeting material (`kind: "tf"`·`"qc"` — `material_key` for `get_material`) |
+| `search_standards` | `query`, `category?`, `std_num?`, `limit?` | One relevance-ranked list of standard paragraphs (`kind: "paragraph"` — `unique_key`, standard title, category, source `url`, snippet) and KICPA quality control/review/assurance/ethics standards and regulator-issued standards (`kind: "assure"`·`"ext_std"` — `material_key` for `get_material`); `category` narrows to one family (K-IFRS, K-GAAP, auditing, SME, …) |
+| `search_qnas` | `query`, `limit?` | One relevance-ranked list of Q&A (`kind: "qna"` — `qna_key`, document number, source `url`, date, issuing body, related standards; withdrawn or amended Q&A carry `validity`) and 정착지원TF / quality control meeting material (`kind: "tf"`·`"qc"` — `material_key` for `get_material`) |
 | `get_paragraph` | `unique_key`, `context?` | The paragraph text with `context` neighbors on each side, standard metadata, and `related_qnas` |
 | `get_qna` | `doc_number` or `qna_key` | Full text of a Q&A document (an array — a number can appear more than once or be empty; `qna_key` = `{source}:{id}` pins one row) |
 | `list_standards` | `category?` | Catalog of standards in the corpus with their `std_num` |
@@ -32,7 +32,9 @@ Every tool is read-only, idempotent, and local (SQLite + FTS5). No external call
 
 ### Search behavior
 
-- Tokens of three or more characters go to FTS5 (AND-joined, rank-ordered). One- and two-character tokens become `LIKE` filters, because the trigram index cannot match them. A query made only of short tokens still works but is ordered by standard number, not relevance.
+- Every query token must appear (AND, matched as a substring, so two-character terms like 리스 work). A paragraph also matches when a token is in its section heading. Look-alike words are not counted as a match: 리스 does not match inside 리스크 (risk) or 체크리스트 (checklist), 감사 not inside 감사합니다, 공시 not inside 공시지가.
+- Results are ranked by a BM25-style relevance over all tokens: section-heading hits and adjacent phrases (리스변경 / 리스 변경) rank higher, and requirement paragraphs rank above Basis for Conclusions and illustrative examples. Paragraph and Q&A text is held in memory for this (loaded at boot).
+- Every hit carries a source `url`: the section page of the KASB standards viewer for paragraphs, the viewer's Q&A page for current Q&A (`null` for the pre-2011 legacy series, which the viewer does not show), and the original page for KASB/KICPA material.
 - Search hits return a snippet with matched terms wrapped in `⟦…⟧`. A snippet is a fragment; quote `get_paragraph`'s `content_text`, never the snippet.
 - `unique_key` is `{standard number}-{paragraph number}` and paragraph numbers are not digits-only (`B58`, `AG12`, `6.1.1`). Pass the value verbatim.
 
@@ -136,7 +138,7 @@ src/main.ts          entry point (stdio by default, --http or MCP_MODE=http for 
 src/tools/           tool registry — the single source of truth for both transports
 src/server/          dispatch, server assembly, auth, HTTP wiring, PlayMCP profile and budget guard
 src/store/           SQLite schema, boot-time validation, FTS definition, usage log
-src/search/          query tokenizer (FTS / LIKE split)
+src/search/          query tokenizer and relevance ranking (pure functions)
 ```
 
 ## Links

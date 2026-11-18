@@ -2,8 +2,8 @@ import { z } from "zod";
 import { defineTool } from "./spec.js";
 import { asText } from "../core/result.js";
 import { VALIDITY_NOTE, validityByDoc } from "../store/validity.js";
+import { standardUrl } from "./source-url.js";
 
-// 웩N·왝N 은 KASB 가 번호 없는 블록과 각주에 붙인 내부 키라 실제 문단번호가 아니다
 function syntheticNote(paraNum: string | null, section: string | null): { note?: string } {
   if (!paraNum) return {};
   if (paraNum.startsWith("웩"))
@@ -46,7 +46,6 @@ export const getParagraph = defineTool({
       { std_num: number; part_document_id: string; seq: number; para_num: string | null;
         document_id: string | null; faq_doc_numbers: string | null } | undefined;
     if (!target) {
-      // 같은 문단번호가 여러 번 나오면 키에 -N 이 붙어 자연 키로는 조회되지 않는다
       const dash = unique_key.indexOf("-");
       const std = dash > 0 ? Number(unique_key.slice(0, dash)) : NaN;
       const para = dash > 0 ? unique_key.slice(dash + 1) : "";
@@ -79,6 +78,7 @@ export const getParagraph = defineTool({
       standard: { std_num: target.std_num, ...std },
       target: unique_key,
       section,
+      url: standardUrl(target.std_num, target.document_id),
       ...syntheticNote(target.para_num, section),
       related_qnas: related,
       ...(invalid.length ? { invalid_related_qnas: { note: VALIDITY_NOTE, items: invalid } } : {}),

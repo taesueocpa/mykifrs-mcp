@@ -183,7 +183,6 @@ export function openCorpus(path: string = DB_PATH): Database.Database {
   return db;
 }
 
-// external content FTS 라 원본 테이블을 바꾼 뒤에는 다시 만들어야 한다(안 하면 fts5: missing row)
 export function rebuildFts(db: Database.Database): { contentRows: number; qnaRows: number; materialRows: number } {
   const known = MATERIAL_BOARD_KEYS.map(() => "?").join(", ");
   db.prepare(`DELETE FROM material_validity WHERE board NOT IN (${known})`).run(...MATERIAL_BOARD_KEYS);

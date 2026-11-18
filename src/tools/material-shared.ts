@@ -1,6 +1,8 @@
 import type Database from "better-sqlite3";
 import { MATERIAL_BOARDS, MATERIAL_BOARD_KEYS, TIER1_BOARDS, type MaterialBoard } from "../store/kasb-db.js";
 import { MATERIAL_VALIDITY_NOTE, type Validity } from "../store/validity.js";
+import { phraseMatch } from "../search/query.js";
+import { FALSE_FRIENDS } from "../search/rank.js";
 
 export const PRACTICE_BOARDS: readonly MaterialBoard[] = ["tf", "qc"];
 export const STANDARD_BOARDS: readonly MaterialBoard[] = ["assure", "ext_std"];
@@ -9,7 +11,6 @@ export const SEARCHABLE_BOARDS = MATERIAL_BOARD_KEYS
 
 export type Scored<T> = { score: number | null; material: boolean; item: T };
 
-// bm25 는 본문이 긴 자료를 뒤로 민다. 자료가 결과에 최소 floor 건은 남게 한다
 export function mergeWithFloor<T>(primary: Scored<T>[], materials: Scored<T>[], limit: number, scored: boolean,
   min = 3): T[] {
   const byScore = (a: Scored<T>, b: Scored<T>) => (a.score ?? 0) - (b.score ?? 0);
@@ -27,11 +28,23 @@ export function mergeWithFloor<T>(primary: Scored<T>[], materials: Scored<T>[], 
 
 export interface MaterialHit {
   board: string; id: number; category: string | null; date: string | null; title: string; tier: 1 | 2;
+  url: string;
   score: number | null;
   snippet: string | null;
 }
 
 export function searchMaterialRows(
+  corpus: Database.Database, q: { match: string | null; short: string[]; phrases?: readonly string[] },
+  opts: { boards?: readonly string[]; tier?: 1 | 2; limit: number },
+): MaterialHit[] {
+  if (!q.match && q.short.length >= 2 && q.phrases?.length) {
+    const byPhrase = queryMaterials(corpus, { match: phraseMatch(q.phrases), short: [] }, opts);
+    if (byPhrase.length) return byPhrase;
+  }
+  return queryMaterials(corpus, q, opts);
+}
+
+function queryMaterials(
   corpus: Database.Database, q: { match: string | null; short: string[] },
   opts: { boards?: readonly string[]; tier?: 1 | 2; limit: number },
 ): MaterialHit[] {
@@ -39,12 +52,17 @@ export function searchMaterialRows(
   const conds: string[] = [];
   const params: unknown[] = [...TIER1_BOARDS];
   if (q.match) { conds.push("material_fts MATCH ?"); params.push(q.match); }
-  for (const s of q.short) { conds.push("(m.body LIKE ? OR m.title LIKE ?)"); params.push(`%${s}%`, `%${s}%`); }
+  for (const s of q.short) {
+    const friends = FALSE_FRIENDS[s.toLowerCase()] ?? [];
+    const scrub = (col: string) => friends.reduce((e) => `replace(${e}, ?, '')`, col);
+    conds.push(`(${scrub("m.body")} LIKE ? OR ${scrub("m.title")} LIKE ?)`);
+    params.push(...friends, `%${s}%`, ...friends, `%${s}%`);
+  }
   if (opts.boards?.length) { conds.push(`m.board IN (${opts.boards.map(() => "?").join(", ")})`); params.push(...opts.boards); }
   if (opts.tier) { conds.push(`${tierSql} = ?`); params.push(...TIER1_BOARDS, opts.tier); }
   params.push(opts.limit);
   return corpus.prepare(`
-    SELECT m.board, m.id, m.category, m.date, m.title, ${tierSql} AS tier,
+    SELECT m.board, m.id, m.category, m.date, m.title, m.url, ${tierSql} AS tier,
            ${q.match ? "bm25(material_fts)" : "NULL"} AS score,
            snippet(material_fts, 1, '⟦', '⟧', '…', 24) AS snippet
     FROM material_fts f

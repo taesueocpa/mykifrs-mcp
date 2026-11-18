@@ -14,7 +14,7 @@ const SELECT = `
 function full(r: FullRow, v: Map<string, Validity[]>) {
   const m = qnaMeta(r);
   return {
-    source: m.source, qna_key: m.qna_key, doc_number: m.doc_number, date: m.date, title: m.title,
+    source: m.source, qna_key: m.qna_key, doc_number: m.doc_number, url: m.url, date: m.date, title: m.title,
     rel_stds: m.rel_stds, full_content: r.full_content, org: m.org, ...validityField(v.get(r.doc_number ?? "")),
   };
 }
@@ -26,7 +26,7 @@ export const getQna = defineTool({
   purpose: `- The 회신 full text for a doc_number (search_qnas, get_paragraph's related_qnas) or a qna_key (search_qnas).`,
   usage: `1. "2017-001 회신 전문" → doc_number="2017-001"
 2. "legacy:6009 전문" → qna_key="legacy:6009"`,
-  response: `- { results:[{source, qna_key, doc_number, date, title, rel_stds, full_content, org}] }
+  response: `- { results:[{source, qna_key, doc_number, url, date, title, rel_stds, full_content, org}] }
 - Miss → { error: "문서번호 없음: {doc_number}", similar:[{source, qna_key, doc_number, title}] } (≤5 부분일치)
   or { error: "qna_key 없음: {qna_key}" }.
 - source / org / rel_stds: same meaning as in search_qnas.`,
@@ -51,7 +51,6 @@ export const getQna = defineTool({
       const v = validityByDoc(corpus, rows.map((r) => r.doc_number));
       return asText({ results: rows.map((r) => full(r, v)) });
     }
-    // 빈 번호로 조회하면 번호 없는 행이 전부 나온다
     if (doc_number == null || doc_number.trim() === "") return asText({ error: "doc_number 또는 qna_key 필요" });
 
     const rows = corpus.prepare(`${SELECT} WHERE q.doc_number = ?`).all(doc_number) as FullRow[];

@@ -2,8 +2,10 @@ import { z } from "zod";
 import { defineTool } from "./spec.js";
 import { asText } from "../core/result.js";
 import { splitQuery } from "../search/query.js";
-import { qnaMeta, validityField, type QnaRow } from "./qna-shared.js";
+import { makeSnippet, queryTerms, relevance } from "../search/rank.js";
+import { qnaMeta, validityField } from "./qna-shared.js";
 import { materialKey, mergeWithFloor, PRACTICE_BOARDS, searchMaterialRows } from "./material-shared.js";
+import { findDocs, qnaIndex, rankStats } from "./search-index.js";
 import { validityByDoc } from "../store/validity.js";
 
 export const searchQnas = defineTool({
@@ -14,13 +16,13 @@ export const searchQnas = defineTool({
 - 문단-linked 회신 → get_paragraph related_qnas.`,
   usage: `1. "전환사채 콜옵션 회계처리 질의회신" → query="전환사채 콜옵션"
 2. "1118호 영업손익 TF 논의까지 30건" → query="영업손익", limit=30`,
-  response: `- { hits, results } by relevance; matched tf·qc keep ≥3 slots (≤limit/3). kind "qna" = 회신 {source, qna_key, doc_number, date, title,
-  rel_stds, org, snippet} → get_qna; kind "tf"·"qc" = 정착지원TF·품질관리실장 회의 {material_key, category, date,
-  title, snippet} → get_material.
+  response: `- { hits, results } by relevance; matched tf·qc keep ≥3 slots (≤limit/3). kind "qna" = 회신 {source, qna_key, doc_number, url,
+  date, title, rel_stds, org, snippet} → get_qna; kind "tf"·"qc" = 정착지원TF·품질관리실장 회의 {material_key, category, date,
+  title, url, snippet} → get_material.
 - org = 회신 기관 (회계기준원·금융감독원·신속처리질의·IFRS 해석위원회 논의결과·구 QnA); source = 수록 세대
   (v2·legacy), never the 기관.
 - rel_stds is HTML — data-std + data-id → unique_key ("1109-6.1.1").`,
-  rules: `- Tokens ≥3 chars → FTS (AND, rank); 1~2 chars → LIKE (회신 first).
+  rules: `- Every token must appear (substring, in 제목 or 본문); 제목 hits first.
 - kind tf·qc are 논의·회의 요약, not 회신 — never cite them as 질의회신.
 - qna_key pins one 회신 when doc_number is "" or duplicated. legacy 회신 (mostly 2000~2011, 구 기업회계기준) —
   check date.`,
@@ -33,32 +35,26 @@ export const searchQnas = defineTool({
     const { match, short } = splitQuery(query);
     if (!match && short.length === 0) return asText({ error: "검색어가 비어 있음" });
 
-    const conds: string[] = [];
-    const params: unknown[] = [];
-    if (match) { conds.push("qna_fts MATCH ?"); params.push(match); }
-    for (const s of short) { conds.push("q.full_content LIKE ?"); params.push(`%${s}%`); }
-    params.push(limit);
-
-    const rows = corpus.prepare(`
-      SELECT qn.source, qn.id, qn.type, qn.doc_number, qn.date, qn.title, qn.rel_stds,
-             t.title AS type_title, ${match ? "bm25(qna_fts)" : "NULL"} AS score,
-             snippet(qna_fts, 1, '⟦', '⟧', '…', 24) AS snippet
-      FROM qna_fts q
-      JOIN qnas qn ON qn.rowid = q.rowid
-      LEFT JOIN qna_types t ON t.type = qn.type
-      WHERE ${conds.join(" AND ")}
-      ${match ? "ORDER BY rank" : ""} LIMIT ?`).all(...params) as Array<QnaRow & { score: number | null; snippet: string }>;
-    const vmap = validityByDoc(corpus, rows.map((r) => r.doc_number));
-    const qnas = rows.map((r) => ({
-      score: r.score, material: false,
-      item: { kind: "qna", ...qnaMeta(r), ...validityField(vmap.get(r.doc_number ?? "")), snippet: r.snippet } as object,
+    const ix = qnaIndex(corpus);
+    const q = queryTerms(query);
+    const stats = rankStats(ix, q);
+    const top = findDocs(ix, q.terms)
+      .map((d) => ({ d, s: relevance(q, stats, d.lower, d.head) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, limit);
+    const vmap = validityByDoc(corpus, top.map(({ d }) => d.doc_number));
+    const qnas = top.map(({ d, s }) => ({
+      score: -s, material: false,
+      item: { kind: "qna", ...qnaMeta(d), ...validityField(vmap.get(d.doc_number ?? "")),
+        snippet: makeSnippet(d.text, d.lower, q, stats) } as object,
     }));
-    const practice = searchMaterialRows(corpus, { match, short }, { boards: PRACTICE_BOARDS, limit }).map((p) => ({
-      score: p.score, material: true,
-      item: { kind: p.board, material_key: materialKey(p.board, p.id), category: p.category, date: p.date, title: p.title,
-        snippet: p.snippet } as object,
-    }));
-    const results = mergeWithFloor(qnas, practice, limit, Boolean(match));
+    const practice = searchMaterialRows(corpus, { match, short, phrases: q.phrases }, { boards: PRACTICE_BOARDS, limit })
+      .map((p) => ({
+        score: p.score, material: true,
+        item: { kind: p.board, material_key: materialKey(p.board, p.id), category: p.category, date: p.date, title: p.title,
+          url: p.url, snippet: p.snippet } as object,
+      }));
+    const results = mergeWithFloor(qnas, practice, limit, true);
     return asText({ hits: results.length, results });
   },
 });

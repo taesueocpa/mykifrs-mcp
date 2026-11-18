@@ -3,6 +3,7 @@ import type Database from "better-sqlite3";
 import { createMcpHandler, isLegacyRequest } from "@modelcontextprotocol/server";
 import { NodeStreamableHTTPServerTransport, toNodeHandler, toWebRequest } from "@modelcontextprotocol/node";
 import { openCorpus } from "../store/kasb-db.js";
+import { warmSearchIndex } from "../tools/search-index.js";
 import { UsageDb } from "../store/usage-db.js";
 import { buildServer } from "./build-server.js";
 import {
@@ -17,7 +18,6 @@ export interface AppDeps {
   allowedOrigins?: readonly string[];
 }
 
-// Fly 프록시 뒤에서는 Fly-Client-IP 가 실제 클라이언트 IP 다
 export function clientIp(req: express.Request): string {
   return (req.headers["fly-client-ip"] as string | undefined) || req.ip || req.socket.remoteAddress || "unknown";
 }
@@ -65,7 +65,6 @@ export function createApp({ corpus, usage, gate, allowedOrigins = [] }: AppDeps)
 
   const sessionFromRequest = (request: Request | undefined) => {
     const h = request?.headers;
-    // ?key= 가 여럿이면 인증 게이트와 같이 없는 것으로 본다
     const keys = request ? new URL(request.url).searchParams.getAll("key") : [];
     const key = keys.length === 1 ? keys[0] : null;
     const token = extractToken(
@@ -162,6 +161,7 @@ export async function serveHttp(): Promise<void> {
     console.error("MCP_TOKEN 미설정 — 관리자 토큰 비활성. /mcp 는 발급 토큰만 수락한다");
 
   const corpus = openCorpus();
+  warmSearchIndex(corpus);
   const usage = new UsageDb();
   const gate = new TokenGate({
     adminToken: MCP_TOKEN,

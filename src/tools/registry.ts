@@ -7,7 +7,6 @@ import { listStandards } from "./list-standards.js";
 import { searchMaterials } from "./search-materials.js";
 import { getMaterial } from "./get-material.js";
 
-// 배열 순서가 tools/list 순서다. 새 도구는 끝에 붙인다
 export const TOOLS: ReadonlyArray<ToolSpec<any>> = [
   searchStandards,
   searchQnas,

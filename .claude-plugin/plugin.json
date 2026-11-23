@@ -1,0 +1,41 @@
+{
+  "name": "mykifrs",
+  "version": "0.20.2",
+  "description": "K-IFRS·일반기업회계기준·감사기준서·내부회계관리제도 기준서 문단과 공인회계사회 감사인증·윤리기준·공익법인·집합건물 회계처리기준 등 고시 원문, 회계기준원·금감원 질의회신(폐기·수정 표시)과 정착지원TF·품질관리실장 회의자료 전문검색 — MCP 도구 7개",
+  "author": {
+    "name": "eocpa.kr",
+    "email": "contact@eocpa.kr",
+    "url": "https://github.com/taesueocpa"
+  },
+  "homepage": "https://eocpa.kr/mykifrs",
+  "repository": "https://github.com/taesueocpa/mykifrs-mcp",
+  "license": "MIT",
+  "keywords": [
+    "k-ifrs",
+    "kasb",
+    "회계기준",
+    "질의회신",
+    "회계기준원",
+    "accounting-standards",
+    "finance-ai",
+    "mcp"
+  ],
+  "mcpServers": {
+    "mykifrs": {
+      "type": "http",
+      "url": "https://mykifrs.eocpa.kr/mcp",
+      "headers": {
+        "x-eocpa-token": "${user_config.token}"
+      }
+    }
+  },
+  "userConfig": {
+    "token": {
+      "type": "string",
+      "title": "eocpa token (필수)",
+      "description": "https://eocpa.kr/token 에서 발급. MyDART·MyKIFRS·MyFSS 공용. 도구 호출에 필수입니다(없으면 401). 목록 조회만 자격 없이 됩니다.",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}
